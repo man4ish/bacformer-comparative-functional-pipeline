@@ -1,0 +1,25 @@
+# Biopython for parsing GenBank files
+biopython>=1.80
+
+# NumPy for array manipulation and saving embeddings
+numpy>=1.24
+
+# PyTorch for Bacformer (CPU + Apple M-series GPU support)
+torch>=2.1
+torchvision>=0.16
+torchaudio>=2.1
+
+# Transformers for loading Bacformer
+transformers>=4.40
+
+# bacformer package
+bacformer>=0.0.5
+
+# Hugging Face hub (required by Bacformer)
+huggingface_hub>=0.16
+
+# Scipy for similarity computations
+scipy>=1.12
+
+# Optional: argparse is built-in, no need to install
+
