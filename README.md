@@ -103,6 +103,71 @@ chmod +x run_genomes.sh
 * Bacformer model is **public**: `macwiatrak/bacformer-masked-MAG`.
 * Optional: install [faESM](https://github.com/pengzhangzhi/faplm) or `flash-attn` for faster embeddings.
 
+Here’s an updated **Fine-Tuning section** you can add to your current README, integrating your classification fine-tuning code:
+
+---
+
+### **5. Fine-Tuning Bacformer for Supervised Classification**
+
+You can fine-tune Bacformer for a **protein-level classification task** (e.g., antibiotic resistance prediction). This requires labeled sequences in CSV format.
+
+#### **Prepare your dataset**
+
+* Training CSV (`train_labels.csv`) and validation CSV (`val_labels.csv`) should have two columns:
+
+| sequence           | label        |
+| ------------------ | ------------ |
+| MKLIVVLLVTLVLCQGYT | resistant    |
+| MAKLTIVLTLVLCQGYT  | nonresistant |
+
+* Ensure **one protein sequence per row** and labels match your classification categories.
+
+---
+
+#### **Run fine-tuning**
+
+```bash
+python src/finetune_bacformer_classification.py \
+    --train_csv data/train_labels.csv \
+    --val_csv data/val_labels.csv \
+    --epochs 10 \
+    --batch_size 8 \
+    --output bacformer_finetuned_classification.pt
+```
+
+* Adjust `epochs` and `batch_size` depending on your dataset and device.
+* The script will save the fine-tuned model as `bacformer_finetuned_classification.pt`.
+
+---
+
+#### **Inference with Fine-Tuned Model**
+
+Once fine-tuned, you can predict labels for new sequences:
+
+```bash
+python src/predict_bacformer.py
+```
+
+* The script reads a file `data/test_proteins.txt` (one sequence per line) and outputs predicted labels.
+* You can also provide a single sequence in the script for quick testing.
+
+---
+
+#### **Notes**
+
+* **Device support:** Works on CPU or Apple M-series GPU (MPS). For large datasets, NVIDIA GPU is recommended.
+* **Weights warning:**
+
+  ```
+  Some weights of EsmModel were not initialized from the model checkpoint...
+  ```
+
+  This is normal — newly added classification layers are trained during fine-tuning.
+* **Accuracy tips:**
+
+  * More sequences per class improve performance.
+  * Consider unfreezing some Bacformer layers for better downstream adaptation.
+
 ---
 
 ## **References**
