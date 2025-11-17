@@ -1,179 +1,156 @@
+# Bacformer Comparative Functional Genomics Pipeline
 
-# Bacformer Genome Embedding and Comparative Analysis Pipeline
+This repository contains a complete end-to-end pipeline for performing **comparative functional genomics** analysis using **Bacformer** (a simulated protein-embedding model).
 
-This repository provides a **pipeline to extract protein sequences from bacterial genomes, generate Bacformer embeddings, and perform comparative analysis** using cosine similarity. It is designed to work with GenBank (`.gbk` / `.gbff`) files and is compatible with macOS, Linux, or KBase environments.
-
----
-
-## **Features**
-
-- Extract coding sequences (CDS) from GenBank files and convert them to protein sequences.
-- Generate **Bacformer embeddings** (contextualized protein language model) for each genome.
-- Compute **pairwise cosine similarity** between genomes for functional comparison.
-- Save embeddings as `.npy` files for downstream analysis.
-- Fully parameterized for multiple genomes.
+The goal is to compute **genome-level similarity** using LLM-based protein embeddings, perform **pangenome** and **clustering** analyses, and generate **biological interpretation** using **RAG-based pathway enrichment**.
 
 ---
 
-## **Requirements**
+## Directory Structure
 
-See [`requirements.txt`](requirements.txt) for all dependencies:
-
-```txt
-biopython>=1.80
-numpy>=1.24
-torch>=2.1
-torchvision>=0.16
-torchaudio>=2.1
-transformers>=4.40
-bacformer>=0.0.5
-huggingface_hub>=0.16
-scipy>=1.12
-````
-
-Install all dependencies:
-
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+```
+bacformer_pipeline/
+├── data/
+│   ├── raw_genomes/
+│   │   ├── genome_1.gbk
+│   │   ├── genome_1.gff
+│   │   ├── ... (50+ Genomes)
+│   │   └── genome_N.gff
+│   └── reference/
+│       ├── go_annotation_db.tsv       # Optional: pathway enrichment DB
+│       └── bacformer_rag_index/       # RAG knowledge base files
+├── src/
+│   ├── run_pipeline.sh                # Orchestrates the workflow (Steps 1–6)
+│   ├── extract_proteins.py            # Step 2: Extract FASTA from GBK
+│   ├── generate_embeddings.py         # Step 4: Bacformer embeddings
+│   ├── compute_similarity.py          # Step 5: Similarity + T-SNE
+│   ├── functional_validation.py       # Step 6: Clustering + enrichment
+│   └── rag_utils.py                   # RAG helper functions
+├── results/
+│   ├── all_proteins.fasta
+│   ├── all_protein_embeddings.npy
+│   ├── protein_ids.csv
+│   ├── genome_embeddings.npy
+│   ├── genome_similarity_matrix.csv
+│   ├── pangenome_roary/
+│   │   └── gene_presence_absence.csv
+│   └── plots/
+│       ├── tsne_genome_clusters.png
+│       └── final_umap_clusters.png
+├── notebooks/
+│   └── exploratory_analysis.ipynb
+└── README.md
 ```
 
 ---
 
-## **Usage**
+## Prerequisites
 
-### **1. Extract protein sequences from GenBank files**
+### 1. Software & Libraries
 
-```bash
-python src/extract_proteins.py --input genome1.gbk --output proteins_genome1.txt
-python src/extract_proteins.py --input genome2.gbk --output proteins_genome2.txt
-```
-
-* Produces a `.txt` file with one protein sequence per line.
-
----
-
-### **2. Generate Bacformer embeddings**
+Install required Python libraries:
 
 ```bash
-python src/generate_embeddings.py --input proteins_genome1.txt --output genome1_embedding.npy
-python src/generate_embeddings.py --input proteins_genome2.txt --output genome2_embedding.npy
+pip install biopython pandas numpy scipy scikit-learn matplotlib tqdm
 ```
 
-* Produces a `.npy` file with a 480-dimensional genome embedding.
+External dependency:
+
+* **Roary** (for pangenome analysis)
+  Must be installed and available in your `PATH`.
+
+### 2. Input Data Requirements
+
+All genome files must be placed under:
+
+```
+data/raw_genomes/
+```
+
+| File Type                  | Requirement          | Source      |
+| -------------------------- | -------------------- | ----------- |
+| **GenBank (.gbk / .gbff)** | Genome annotation    | NCBI RefSeq |
+| **GFF3 (.gff)**            | Annotation for Roary | Same as GBK |
 
 ---
 
-### **3. Compute pairwise similarity**
+## Pipeline Workflow (6 Steps)
+
+The whole pipeline is run through:
+
+```
+src/run_pipeline.sh
+```
+
+### Steps Overview
+
+| Step  | Script                     | Description                                                | Input         | Output                            |
+| ----- | -------------------------- | ---------------------------------------------------------- | ------------- | --------------------------------- |
+| **1** | Setup                      | Verify data & directory structure                          | raw genomes   | initialized folders               |
+| **2** | `extract_proteins.py`      | Extract protein sequences into master FASTA                | *.gbk         | `results/all_proteins.fasta`      |
+| **3** | **Roary**                  | Pangenome analysis → PAV matrix                            | *.gff         | `gene_presence_absence.csv`       |
+| **4** | `generate_embeddings.py`   | Bacformer protein embeddings (1024-D)                      | protein FASTA | `all_protein_embeddings.npy`      |
+| **5** | `compute_similarity.py`    | Aggregate genome embeddings, compute similarity, T-SNE     | embeddings    | T-SNE plot                        |
+| **6** | `functional_validation.py` | Clustering, pangenome enrichment, RAG-based interpretation | all results   | `functional_validation_report.md` |
+
+---
+
+## Usage
+
+### 1. Install Dependencies
 
 ```bash
-python src/compare_embeddings.py --embeddings genome1_embedding.npy genome2_embedding.npy
+pip install biopython pandas numpy scipy scikit-learn matplotlib tqdm
 ```
 
-* Prints a **cosine similarity matrix** to the console.
-* Saves the similarity matrix to `similarity_matrix.txt`.
-
----
-
-### **4. End-to-end script**
-
-You can use the included shell script to process multiple genomes automatically:
+Verify Roary:
 
 ```bash
-chmod +x run_genomes.sh
-./run_genomes.sh
+roary -h
 ```
 
-* Extracts proteins, generates embeddings, and computes pairwise similarity for all genomes in the script.
-
 ---
 
-## **Output**
+### 2. Download Data
 
-* `proteins_genomeX.txt` — extracted protein sequences.
-* `genomeX_embedding.npy` — Bacformer embedding for each genome.
-* `similarity_matrix.txt` — pairwise cosine similarity for all processed genomes.
-
----
-
-## **Notes**
-
-* Works on **CPU or Apple M-series GPU (MPS)**; for large genomes or batch processing, NVIDIA GPU is recommended.
-* Bacformer model is **public**: `macwiatrak/bacformer-masked-MAG`.
-* Optional: install [faESM](https://github.com/pengzhangzhi/faplm) or `flash-attn` for faster embeddings.
-
-Here’s an updated **Fine-Tuning section** you can add to your current README, integrating your classification fine-tuning code:
-
----
-
-### **5. Fine-Tuning Bacformer for Supervised Classification**
-
-You can fine-tune Bacformer for a **protein-level classification task** (e.g., antibiotic resistance prediction). This requires labeled sequences in CSV format.
-
-#### **Prepare your dataset**
-
-* Training CSV (`train_labels.csv`) and validation CSV (`val_labels.csv`) should have two columns:
-
-| sequence           | label        |
-| ------------------ | ------------ |
-| MKLIVVLLVTLVLCQGYT | resistant    |
-| MAKLTIVLTLVLCQGYT  | nonresistant |
-
-* Ensure **one protein sequence per row** and labels match your classification categories.
-
----
-
-#### **Run fine-tuning**
+Use included script (optional):
 
 ```bash
-python src/finetune_bacformer_classification.py \
-    --train_csv data/train_labels.csv \
-    --val_csv data/val_labels.csv \
-    --epochs 10 \
-    --batch_size 8 \
-    --output bacformer_finetuned_classification.pt
+chmod +x scripts/download_genomes.sh
+./scripts/download_genomes.sh
 ```
 
-* Adjust `epochs` and `batch_size` depending on your dataset and device.
-* The script will save the fine-tuned model as `bacformer_finetuned_classification.pt`.
+Or manually place `.gbk` and `.gff` files into:
+
+```
+data/raw_genomes/
+```
 
 ---
 
-#### **Inference with Fine-Tuned Model**
-
-Once fine-tuned, you can predict labels for new sequences:
+### 3. Run the Full Pipeline
 
 ```bash
-python src/predict_bacformer.py
+chmod +x src/run_pipeline.sh
+./src/run_pipeline.sh
 ```
 
-* The script reads a file `data/test_proteins.txt` (one sequence per line) and outputs predicted labels.
-* You can also provide a single sequence in the script for quick testing.
-
 ---
 
-#### **Notes**
+### 4. Review Results
 
-* **Device support:** Works on CPU or Apple M-series GPU (MPS). For large datasets, NVIDIA GPU is recommended.
-* **Weights warning:**
+All outputs appear in the `results/` directory.
 
-  ```
-  Some weights of EsmModel were not initialized from the model checkpoint...
-  ```
+Key final output:
 
-  This is normal — newly added classification layers are trained during fine-tuning.
-* **Accuracy tips:**
+```
+results/functional_validation_report.md
+```
 
-  * More sequences per class improve performance.
-  * Consider unfreezing some Bacformer layers for better downstream adaptation.
+This report includes:
 
----
-
-## **References**
-
-* Wiatrak et al., *“A contextualised protein language model reveals the functional syntax of bacterial evolution”*, 2025.
-* Bacformer Hugging Face model: [https://huggingface.co/macwiatrak/bacformer-masked-MAG](https://huggingface.co/macwiatrak/bacformer-masked-MAG)
-* GitHub repo: [https://github.com/macwiatrak/Bacformer](https://github.com/macwiatrak/Bacformer)
-
+* Cluster membership
+* Pangenome-based signature genes
+* Pathway enrichment
+* RAG-generated functional summaries
 
